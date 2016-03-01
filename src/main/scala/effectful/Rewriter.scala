@@ -43,7 +43,7 @@ private abstract class Rewriter {
     if (instanceTypes.size > 1)
       c.abort(tree.pos, s"cannot unwrap more than one monadic type in a given $EFFECTFULLY block")
 
-    unapplies(0)
+    unapplies.head
   }
 
   def getUnapplyTC(unapplyInstance: Tree): Tree = Select(unapplyInstance, TermName("TC"))
@@ -350,7 +350,7 @@ private abstract class Rewriter {
     for {
       hmc <- matchHofCall(tree)
       if List("map", "flatMap", "foreach", "withFilter") contains hmc.method // these are the only HOFs we can transform
-      if !collectUnwrapArgs(hmc.funBody).isEmpty // the HOF is effectful
+      if collectUnwrapArgs(hmc.funBody).nonEmpty // the HOF is effectful
       (objBinds, newObj1) = extractBindings(hmc.obj)
       newObj = fixFilter(newObj1)
     } yield {
@@ -387,10 +387,10 @@ private abstract class Rewriter {
       // The newTree might not actually be a statement but just a standalone identifier,
       // and as of 2.10.2 "pure" expressions in statement position are considered an error,
       // so we excise them here.
-      val newStmt = List(newTree) filter ({
+      val newStmt = List(newTree) filter {
         case Ident(_) => false
         case _ => true
-      })
+      }
       val restGrp@(restBindings, Block(restStmts, expr)) = extractBlock(rest)
       val newBlock =
         if (restBindings.isEmpty) Block(newStmt ++ restStmts, expr)
@@ -419,7 +419,7 @@ private abstract class Rewriter {
     */
   def resolveInstanceOrFail[TC: TypeTag](tree: Tree): Tree = {
     val oldTree = attachments(tree).get[OldTree]
-    if (!oldTree.isDefined)
+    if (oldTree.isEmpty)
       c.abort(tree.pos, s"no type information could be found for $tree")
 
     var tpe = oldTree.get.tree.tpe.widen
@@ -456,18 +456,19 @@ private abstract class Rewriter {
     */
   def resolveInstance[TC: TypeTag](tpe: Type): Option[Tree] = {
     def resolve(pre: Type)(sym: Symbol): Option[Tree] = {
-      if (sym == typeOf[Nothing].typeSymbol)
-        return None
+      if (sym == typeOf[Nothing].typeSymbol) {
+        None
+      } else {
+        val tyCon = typeRef(pre, sym, Nil)
 
-      val tyCon = typeRef(pre, sym, Nil)
+        val reAppliedTc = typeRef(NoPrefix, typeOf[TC].typeSymbol, List(tyCon))
+        val tcInstance = c.inferImplicitValue(reAppliedTc)
 
-      val reAppliedTc = typeRef(NoPrefix, typeOf[TC].typeSymbol, List(tyCon))
-      val tcInstance = c.inferImplicitValue(reAppliedTc)
-
-      if (tcInstance == EmptyTree)
-        return None
-
-      Some(tcInstance)
+        if (tcInstance == EmptyTree)
+          None
+        else
+          Some(tcInstance)
+      }
     }
 
     val (pre, sym) = tpe match {
@@ -475,8 +476,8 @@ private abstract class Rewriter {
       case _ => (NoPrefix, tpe.typeSymbol)
     }
 
-    val instances = (tpe.typeSymbol :: tpe.baseClasses).toStream collect unlift(resolve(pre) _)
+    val instances = (tpe.typeSymbol :: tpe.baseClasses).toStream collect unlift(resolve(pre))
 
-    return if (instances.isEmpty) None else Option(instances.head)
+    if (instances.isEmpty) None else Option(instances.head)
   }
 }
