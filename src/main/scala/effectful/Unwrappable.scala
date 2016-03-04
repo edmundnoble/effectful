@@ -7,8 +7,8 @@ import scala.reflect.internal.annotations.compileTimeOnly
 class Unwrappable[MA, A](ma: MA) {
 
   @compileTimeOnly(s"Cannot unwrap outside of a `$EFFECTFULLY` block")
-  def unwrap: A = sys.error(s"$UNWRAP was not macro'ed away!")
+  def unwrap: A = sys.error(s"$UNWRAPU was not macro'ed away!")
 
   @compileTimeOnly(s"Cannot unwrap outside of a `$EFFECTFULLY` block")
-  def ! : A = sys.error(s"$UNWRAP was not macro'ed away!")
+  def ! : A = sys.error(s"$UNWRAPU was not macro'ed away!")
 }

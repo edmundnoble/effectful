@@ -10,7 +10,7 @@ startYear := Some(2013)
 
 scalaVersion := "2.11.6"
 
-libraryDependencies <++= (scalaVersion) { sv => Seq("org.scala-lang" % "scala-reflect" % sv) }
+libraryDependencies <++= scalaVersion { sv => Seq("org.scala-lang" % "scala-reflect" % sv) }
 
 libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.1.2"
 
